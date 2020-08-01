@@ -806,11 +806,19 @@ contract MinterRole {
         require(isMinter(msg.sender), "MinterRole: caller does not have the Minter role");
         _;
     }
-
+	
+	 /**
+     * @dev Check if minters include the specified account.
+     * @return bool
+     */
     function isMinter(address account) public view returns (bool) {
         return _minters.has(account);
     }
-
+	
+	 /**
+     * @dev Add an account to minters. Only by current minters. Calls internal _addMinter function
+     * 
+     */
     function addMinter(address account) public onlyMinter {
         _addMinter(account);
     }
@@ -1229,6 +1237,7 @@ contract Game is AdminRole {
   event SeeValue(uint256 val, string des);
   event Msg(string des);
 
+	//the basic structure of gameplay and guiderails for Roshambo
   struct LeagueInfo {
       uint256 maxNumberOfRocks;
       uint256 maxNumberOfScissors;
@@ -1264,18 +1273,20 @@ contract Game is AdminRole {
     owner = msg.sender;
   }
 
+	//Establish the parameters for the persistent gaming environment. Leagues are pushed into an array
   function addLeague(uint256 _numberOfRocks, uint256 _numberOfScissors, uint256 _numberOfPapers, uint256 _numberOfStars) public onlyAdmin {
     LeagueInfo memory leagueInfo;
     leagueInfo.maxNumberOfRocks = _numberOfRocks;
     leagueInfo.maxNumberOfScissors = _numberOfScissors;
     leagueInfo.maxNumberOfPapers = _numberOfPapers;
     leagueInfo.maxNumberOfStars = _numberOfStars;
-    leagueInfo.rocksUsed = _numberOfRocks;
-    leagueInfo.scissorsUsed = _numberOfScissors;
-    leagueInfo.papersUsed = _numberOfPapers;
+    leagueInfo.rocksUsed = _numberOfRocks;            // shouldnt this be 0 when establishing the league?
+    leagueInfo.scissorsUsed = _numberOfScissors;     // shouldnt this be 0 when establishing the league?
+    leagueInfo.papersUsed = _numberOfPapers;        // shouldnt this be 0 when establishing the league?
     leagues.push(leagueInfo);
   }
 
+	//Return the league information based on the location in the array, leagueID
   function getLeagueInfoById(uint256 _leagueId) public view returns(uint256, uint256, uint256, uint256, uint256, uint256, uint256) {
     return (
       leagues[_leagueId].maxNumberOfRocks,
@@ -1287,7 +1298,7 @@ contract Game is AdminRole {
       leagues[_leagueId].currentScissorsAvailable);
   }
 
-  // Gives the cards available in the league after usage to show in the gameplay
+  // Gives the cards available in the most recent league after usage to show in the gameplay
   function getRemainingCardsInLeague() public view returns (uint256, uint256, uint256) {
     require(leagues.length > 0, "There are no leagues available right now");
     LeagueInfo memory currentLeague = leagues[leagues.length - 1];
@@ -1298,7 +1309,7 @@ contract Game is AdminRole {
     );
   }
 
-  // Returns the in use papers, rocks and scissors or throws if no league exists
+  // Returns the in available/purchased papers, rocks and scissors from most recent league or throws if no league exists
   function getLatestLeagueInfo() public view returns (uint256, uint256, uint256) {
     require(leagues.length > 0, "There are no leagues available right now");
     LeagueInfo memory currentLeague = leagues[leagues.length - 1];
@@ -1309,11 +1320,22 @@ contract Game is AdminRole {
     );
   }
 
+	// Returns the total # of unpurchased cards by subtracting Max#ofItems from CurrentItemAvailable. 
+	//this may not be accurate if it does not consider the cards used in gameplay
   function getAvailableTokensForPurchase() public view returns(uint256) {
     LeagueInfo memory currentLeague = leagues[leagues.length - 1];
     return currentLeague.maxNumberOfRocks - currentLeague.currentRocksAvailable + currentLeague.maxNumberOfPapers - currentLeague.currentPapersAvailable + currentLeague.maxNumberOfScissors - currentLeague.currentScissorsAvailable;
   }
 
+	
+    /**
+     * @dev Public Payable function to buy rocks
+     * Requires that the value being sent is , that there is a league to buy from and that there are unpurchased rocks.
+	 *Currently DOesnt check to make sure that there are enough rocks left for the expected purchase
+	 *mints new cards to the msg.sender  - we may need a function to send to a designated address
+     * @param _cardsToBuy  uint256 number of cards to purchase
+     * 
+     */
   function buyRocks(uint256 _cardsToBuy) public payable {
     require(msg.value >= _cardsToBuy * cardPrice, "You must send the right price price for the amount of cards you want to buy");
     require(leagues.length > 0, "There are no leagues available right now");
@@ -1325,6 +1347,14 @@ contract Game is AdminRole {
     }
   }
 
+	 /**
+     * @dev Public Payable function to buy paper
+     * Requires that the value being sent is , that there is a league to buy from and that there are unpurchased papers.
+	 *Currently DOesnt check to make sure that there are enough left for the expected purchase
+	 *mints new cards to the msg.sender  - we may need a function to send to a designated address
+     * @param _cardsToBuy  uint256 number of cards to purchase
+     * 
+     */
   function buyPapers(uint256 _cardsToBuy) public payable {
     require(msg.value >= _cardsToBuy * cardPrice, "You must send the right price price for the amount of cards you want to buy");
     require(leagues.length > 0, "There are no leagues available right now");
@@ -1336,6 +1366,14 @@ contract Game is AdminRole {
     }
   }
 
+	 /**
+     * @dev Public Payable function to buy scissors
+     * Requires that the value being sent is , that there is a league to buy from and that there are unpurchased scissors.
+	 *Currently DOesnt check to make sure that there are enough scissors left for the expected purchase
+	 *mints new cards to the msg.sender  - we may need a function to send to a designated address
+     * @param _cardsToBuy  uint256 number of cards to purchase
+     * 
+     */
   function buyScissors(uint256 _cardsToBuy) public payable {
     require(msg.value >= _cardsToBuy * cardPrice, "You must send the right price price for the amount of cards you want to buy");
     require(leagues.length > 0, "There are no leagues available right now");
@@ -1350,18 +1388,26 @@ contract Game is AdminRole {
   // You need to send the msg.value where each card is 10 TRX so if you
   // set the quantity to 20, you must send 200 TRX or more
   // if you send more than the quantity, you lost that amount
+   /**
+     * @dev Public Payable function to buy cards
+     * Requires that the value being sent is , that there is a league to buy from and that there are unpurchased cards.
+	 *Currently DOesnt check to make sure that there are enough rocks left for the expected purchase
+	 *mints new cards to the msg.sender  - we may need a function to send to a designated address
+     * @param _cardsToBuy  uint256 number of cards to purchase
+     * 
+     */
   function buyCards(uint256 _cardsToBuy) public payable {
-    emit Msg('1');
+    //emit Msg('1');
     require(msg.value >= _cardsToBuy * cardPrice, "You must send the right price price for the amount of cards you want to buy");
-    emit Msg('2');
+    //emit Msg('2');
     require(leagues.length > 0, "There are no leagues available right now");
-    emit Msg('3');
+    //emit Msg('3');
     require(getAvailableTokensForPurchase() > 0, "There are no tokens available for purchase on this league anymore");
-    emit Msg('4');
+    //emit Msg('4');
     uint8 lastId = 0;
     // Mint the required tokens for each type alternating
     for (uint256 i = 0; i < _cardsToBuy; i++) {
-      emit Msg('5');
+      //emit Msg('5');
       if (lastId == 0) {
         if (leagues[leagues.length - 1].currentRocksAvailable < leagues[leagues.length - 1].maxNumberOfRocks) {
           mintRocks();
@@ -1374,7 +1420,7 @@ contract Game is AdminRole {
           break;
         }
       } else if (lastId == 1) {
-        emit Msg('6');
+        //emit Msg('6');
         if (leagues[leagues.length - 1].currentPapersAvailable < leagues[leagues.length - 1].maxNumberOfPapers) {
           mintPapers();
         } else if (leagues[leagues.length - 1].currentRocksAvailable < leagues[leagues.length - 1].maxNumberOfRocks) {
@@ -1386,7 +1432,7 @@ contract Game is AdminRole {
           break;
         }
       } else {
-        emit Msg('7');
+        //emit Msg('7');
         if (leagues[leagues.length - 1].currentScissorsAvailable < leagues[leagues.length - 1].maxNumberOfScissors) {
           mintScissors();
         } else if (leagues[leagues.length - 1].currentPapersAvailable < leagues[leagues.length - 1].maxNumberOfPapers) {
@@ -1398,7 +1444,7 @@ contract Game is AdminRole {
           break;
         }
       }
-      emit Msg('8');
+      //emit Msg('8');
       if (lastId == 2) lastId = 0;
       else lastId++;
     }
@@ -1412,28 +1458,49 @@ contract Game is AdminRole {
     return (rocks, papers, scissors);
   }
 
+  /**
+     * @dev Internal function to mint Rocks
+     *mints the token using rockToken with the parameter being that it is sent to the sender. The rocks available is then increased, effectively decreasing the amount available for purchase
+     *  
+     */
   function mintRocks() internal {
     rockToken.mint(msg.sender);
     leagues[leagues.length - 1].currentRocksAvailable++;
   }
 
+  /**
+     * @dev Internal function to mint Papers
+     *mints the token using paperToken with the parameter being that it is sent to the sender. The papers available is then increased, effectively decreasing the amount available for purchase
+     *  
+     */
   function mintPapers() internal {
     paperToken.mint(msg.sender);
     leagues[leagues.length - 1].currentPapersAvailable++;
   }
 
+  /**
+     * @dev Internal function to mint Scissors
+     *mints the token using scissorsToken with the parameter being that it is sent to the sender. The scissors available is then increased, effectively decreasing the amount available for purchase
+     *  
+     */
   function mintScissors() internal {
     scissorToken.mint(msg.sender);
     leagues[leagues.length - 1].currentScissorsAvailable++;
   }
 
+  /**
+     * @dev Public function
+     *mints the token using rockToken with the parameter being that it is sent to the sender. The rocks available is then increased, effectively decreasing the amount available for purchase
+     * 
+     * @param _cardType references Rock , Paper or Scissor. This reflects the call to delete a card. This should be called in the match process. 
+     */
   function deleteCard(string memory _cardType) public {
     uint256[] memory userRocks;
     uint256[] memory userPapers;
     uint256[] memory userScissors;
     (userRocks, userPapers, userScissors) = getMyCards();
     LeagueInfo memory currentLeague = leagues[leagues.length - 1];
-    require(currentLeague.rocksUsed > 0
+    require(currentLeague.rocksUsed > 0                           // Jomari think this should be current available
       && currentLeague.papersUsed > 0
       && currentLeague.scissorsUsed > 0, "No cards available for deletion");
 
